@@ -1,0 +1,109 @@
+apply plugin: 'java'
+
+import com.chaquo.python.Common;
+
+
+configurations {
+    // Can't use "compile" or anything based on it, because it contains android.jar. Can't use
+    // "archives" because it somehow ends up containing everything from all the other configurations
+    // as well.
+    chaquopyJava
+
+    chaquopyPython
+    jniLibs
+    libDynload
+}
+artifacts { chaquopyJava jar }
+
+sourceSets.main.java.srcDirs += ["../buildSrc/src/main/java"]
+sourceCompatibility = 7
+archivesBaseName = "chaquopy_java"
+
+task("zipPython", type: Zip, group: "build") {
+    from fileTree("src/main/python") {
+        include "**/*.py"
+        include "**/*.dist-info/**"  // For license files
+        includeEmptyDirs false
+    }
+    destinationDir buildDir
+    archiveName Common.ASSET_BOOTSTRAP
+}
+artifacts { chaquopyPython zipPython }
+
+// The following properties file should be created manually.
+String requireProperty(String key) {
+    def localProps = new Properties()
+    localProps.load(project.rootProject.file('local.properties').newDataInputStream())
+    def result = localProps.getProperty(key)
+    if (result == null) {
+        throw new GradleException("'$key' is missing from local.properties")
+    }
+    return result
+}
+
+def sdkDir = requireProperty('sdk.dir')
+def ndkDir = requireProperty('ndk.dir')
+def crystaxDir = requireProperty('crystax.dir')
+
+def sdkCmakeParentDir = new File(sdkDir, "cmake")
+def sdkCmakeDir = "$sdkCmakeParentDir/${sdkCmakeParentDir.list()[0]}"
+def androidJar = "$sdkDir/platforms/android-$Common.COMPILE_SDK_VERSION/android.jar"
+
+dependencies {
+    compileOnly files(androidJar)
+}
+
+def prevPyVersion = null
+for (pyFullVersion in ["3.6.5"]) {
+    def pyVersion = Common.pyVersionShort(pyFullVersion)
+    if (prevPyVersion != null && pyVersion.equals(prevPyVersion)) continue
+
+    for (abi in Common.ABIS) {
+        def pyPlusVersion = "python${Common.PYTHON_SUFFIXES.get(pyVersion)}"
+        def pyLibPrefix = ""
+        def pyLibSuffix = ".so"
+        def javaLibPrefix = "lib"
+        def javaLibSuffix = ".so"
+
+        def cmakeBuildSubdir = "$buildDir/cmake/$pyVersion/$abi"
+        def cmakeBuildType = findProperty("cmakeBuildType") ?: "Release"
+        def cmake = task("cmake-$pyVersion-$abi", type: Exec, group: "build") {
+            inputs.dir "src/main/c"
+            inputs.files "CMakeLists.txt"
+            inputs.property("cmakeBuildType", cmakeBuildType)
+            outputs.files "$cmakeBuildSubdir/build.ninja", "$cmakeBuildSubdir/rules.ninja",
+                          "$cmakeBuildSubdir/CMakeCache.txt"
+            doFirst {
+                mkdir cmakeBuildSubdir
+                delete(outputs.files)   // Otherwise changes to args below won't take effect
+            }
+            workingDir cmakeBuildSubdir
+            executable "$sdkCmakeDir/bin/cmake"
+            args "-GNinja", "-DCMAKE_MAKE_PROGRAM=$sdkCmakeDir/bin/ninja",
+                 "-DCMAKE_BUILD_TYPE=$cmakeBuildType",
+                 "-DCHAQUOPY_LIBS=$pyPlusVersion"
+
+            def pyDir = "$crystaxDir/sources/python/$pyVersion"
+            args "-DCMAKE_TOOLCHAIN_FILE=$ndkDir/build/cmake/android.toolchain.cmake",
+                 "-DANDROID_NDK=$ndkDir", "-DANDROID_STL=system",
+                 "-DANDROID_NATIVE_API_LEVEL=$Common.MIN_SDK_VERSION", "-DANDROID_ABI=$abi",
+                 "-DCHAQUOPY_INCLUDE_DIRS=$pyDir/include/python",
+                 "-DCHAQUOPY_LIB_DIRS=$pyDir/libs/$abi"
+            args "-DPY_LIB_PREFIX=$pyLibPrefix", "-DPY_LIB_SUFFIX=$pyLibSuffix",
+                 "-DJAVA_LIB_PREFIX=$javaLibPrefix", "-DJAVA_LIB_SUFFIX=$javaLibSuffix",
+                 "$projectDir"
+        }
+
+        def cmakeBuild = task("cmakeBuild-$pyVersion-$abi", type: Exec, group: "build") {
+            // No inputs or outputs: the command itself determines whether it's up to date.
+            dependsOn cmake
+            executable "$sdkCmakeDir/bin/cmake"
+            args "--build", cmakeBuildSubdir
+        }
+        project.artifacts {
+            jniLibs    (file("$cmakeBuildSubdir/libchaquopy_java.so")) { builtBy cmakeBuild }
+            libDynload (file("$cmakeBuildSubdir/chaquopy.so"))         { builtBy cmakeBuild }
+        }
+    }
+    prevPyVersion = pyVersion
+}

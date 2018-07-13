@@ -1,0 +1,98 @@
+evaluationDependsOn ":runtime"
+
+def version = file("../../VERSION.txt").text.trim()
+def filenameStem = "gradle-${version}"
+def outputDir = "$buildDir/libs"
+
+configurations {
+    inputJar
+    inputPom
+    runtimeJava         // There's probably a way to avoid this indirection, but when I tried
+    runtimePython       // project(":runtime).configurations.whatever, it always came back
+    runtimeJniLibs      // empty, even when contained within doLast {}.
+    runtimeLibDynload
+}
+
+repositories {
+    maven { url "https://chaquo.com/maven" }
+}
+
+dependencies {
+    def inputSpec ="com.chaquo.python:gradle:$version"
+    inputJar inputSpec
+    inputPom "$inputSpec@pom"
+    runtimeJava         project(path: ":runtime", configuration: "chaquopyJava")
+    runtimePython       project(path: ":runtime", configuration: "chaquopyPython")
+    runtimeJniLibs      project(path: ":runtime", configuration: "jniLibs")
+    runtimeLibDynload   project(path: ":runtime", configuration: "libDynload")
+}
+
+task("build", group: "build") {
+    dependsOn "buildJar", "buildPom"
+}
+
+task("buildJar", group: "build") {
+    def jarFilename = "${filenameStem}.jar"
+    inputs.files(configurations.inputJar, configurations.runtimeJava,
+                 configurations.runtimePython, configurations.runtimeJniLibs,
+                 configurations.runtimeLibDynload)
+    outputs.file "$outputDir/$jarFilename"
+    doLast {
+        def buildSubdir = "$buildDir/buildJar"
+        delete buildSubdir
+        copy {
+            from zipTree(findDependency(configurations.inputJar, jarFilename))
+            into buildSubdir
+        }
+
+        def runtimeDir = "$buildSubdir/com/chaquo/python/runtime"
+        delete runtimeDir
+        copy {
+            into(runtimeDir)
+            from(configurations.runtimeJava)
+            from(configurations.runtimePython)
+
+            into("jniLibs") {
+                for (file in configurations.runtimeJniLibs) {
+                    from(file) {
+                        into "$file.parentFile.parentFile.name/$file.parentFile.name"
+                    }
+                }
+            }
+            into("lib-dynload") {
+                for (file in configurations.runtimeLibDynload) {
+                    from(file) {
+                        into "$file.parentFile.parentFile.name/$file.parentFile.name/java"
+                    }
+                }
+            }
+        }
+
+        ant.zip(baseDir: buildSubdir, destfile: outputs.files.getSingleFile())
+    }
+}
+
+task("buildPom", group: "build") {
+    def pomFilename = "${filenameStem}.pom"
+    inputs.files configurations.inputPom
+    outputs.file "$outputDir/$pomFilename"
+    doLast {
+        copy {
+            from findDependency(configurations.inputPom, pomFilename)
+            into outputDir
+        }
+    }
+}
+
+static File findDependency(config, String filename) {
+    File foundFile = null
+    for (File file in config) {
+        if (file.name.equals(filename)) {
+            foundFile = file
+        }
+    }
+    if (foundFile == null) {
+        throw new GradleException("Couldn't find $filename in " + config.collect { it.name })
+    }
+    return foundFile
+}
