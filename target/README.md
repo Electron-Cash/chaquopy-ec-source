@@ -1,7 +1,8 @@
 # Introduction
 
 This file contains instructions for building and packaging Python and its dependencies for use
-with Chaquopy. This process has only been tested on Linux x86-64.
+with Chaquopy. This process has only been tested on Linux x86-64. However, the resulting
+packages can be used on any supported Android build platform (Windows, Linux or Mac).
 
 In the following, let `$ABIS` be a comma-separated list of Android ABI names, e.g.
 `armeabi-v7a,x86`.
@@ -96,5 +97,3 @@ will be created there:
 * One ZIP for each ABI, containing native libraries and modules.
 * Two ZIPs for the Python standard library: one in `.py` format and one in `.pyc` format.
 
-See the [Chaquopy Maven repository](https://chaquo.com/maven/com/chaquo/python/target/) for
-examples of this script's output.
