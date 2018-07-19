@@ -1,0 +1,32 @@
+[submodule "target/platform/ndk"]
+	path = target/platform/ndk
+	url = gitolite@chaquo.com:crystax-platform-ndk
+	branch = crystax-r10
+[submodule "target/platform/bionic"]
+	path = target/platform/bionic
+	url = git@github.com:crystax/android-platform-bionic.git
+	branch = crystax-r10
+[submodule "target/platform/system/core"]
+	path = target/platform/system/core
+	url = git@github.com:crystax/android-platform-system-core.git
+	branch = crystax-r10
+[submodule "target/toolchain/llvm-3.6/compiler-rt"]
+	path = target/toolchain/llvm-3.6/compiler-rt
+	url = git@github.com:crystax/android-toolchain-compiler-rt-3-6.git
+	branch = crystax-r10
+[submodule "target/vendor/dlmalloc"]
+	path = target/vendor/dlmalloc
+	url = git@github.com:crystax/android-vendor-dlmalloc.git
+	branch = crystax-r10
+[submodule "target/vendor/freebsd"]
+	path = target/vendor/freebsd
+	url = git@github.com:crystax/android-vendor-freebsd.git
+	branch = crystax-r10
+[submodule "target/vendor/libkqueue"]
+	path = target/vendor/libkqueue
+	url = git@github.com:crystax/android-vendor-libkqueue.git
+	branch = crystax-r10
+[submodule "target/vendor/libpwq"]
+	path = target/vendor/libpwq
+	url = git@github.com:crystax/android-vendor-libpwq.git
+	branch = crystax-r10
