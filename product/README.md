@@ -5,7 +5,12 @@ Cash. This process has only been tested on Linux x86-64. However, the resulting 
 used on any supported Android build platform (Windows, Linux or Mac).
 
 
-# Prerequisites
+# Build prerequisites
+
+* JDK 8 or higher.
+
+
+# Android SDK
 
 Create an empty directory for the Android SDK, and let its location be `$ANDROID_SDK`.
 
@@ -17,7 +22,11 @@ Let `$COMPILE_SDK_VERSION` be the value given in
 
 	$ANDROID_SDK/tools/bin/sdkmanager --install ndk-bundle "cmake;3.6.4111459" "platforms;android-$COMPILE_SDK_VERSION"
 
-Install Crystax NDK 10.3.2. Let its location be `$CRYSTAX_DIR`.
+
+# Crystax Python
+
+Install [Crystax NDK](https://www.crystax.net/en/download) version 10.3.2. Let its location be
+`$CRYSTAX_DIR`.
 
 `$CRYSTAX_DIR/sources/python/3.6` must contain the Python libraries and includes.  Either
 generate them using the instructions in `target/README.md`, or copy them from another machine.
