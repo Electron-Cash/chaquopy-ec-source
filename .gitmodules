@@ -30,3 +30,10 @@
 	path = target/vendor/libpwq
 	url = https://github.com/crystax/android-vendor-libpwq.git
 	branch = crystax-r10
+[submodule "target/python"]
+	path = target/python
+	url = https://github.com/python/cpython.git
+	branch = 3.6
+[submodule "target/openssl"]
+	path = target/openssl
+	url = https://github.com/openssl/openssl.git
