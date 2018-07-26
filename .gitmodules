@@ -1,6 +1,6 @@
 [submodule "target/platform/ndk"]
 	path = target/platform/ndk
-	url = gitolite@chaquo.com:crystax-platform-ndk
+	url = https://github.com/chaquo/android-platform-ndk.git
 	branch = crystax-r10
 [submodule "target/platform/bionic"]
 	path = target/platform/bionic
