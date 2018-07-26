@@ -14,8 +14,8 @@ used on any supported Android build platform (Windows, Linux or Mac).
 
 Create an empty directory for the Android SDK, and let its location be `$ANDROID_SDK`.
 
-Download the Android [command line tools](https://developer.android.com/studio/) package, and
-unzip it into `$ANDROID_SDK`.
+Download the Android [command line tools](https://developer.android.com/studio/) package
+(there's no need to install Android Studio itself), and unzip it into `$ANDROID_SDK`.
 
 Let `$COMPILE_SDK_VERSION` be the value given in
 `product/buildSrc/src/main/java/com/chaquo/python/Common.java`. Then run the following:
@@ -34,7 +34,8 @@ generate them using the instructions in `target/README.md`, or copy them from an
 
 # Build
 
-Create a file `product/local.properties` with the following content (expand the variables yourself):
+Create a `local.properties` file in `product` (i.e. the same directory as this README), with
+the following content (expand the variables yourself):
 
 	sdk.dir=$ANDROID_SDK
 	ndk.dir=$ANDROID_SDK/ndk-bundle
