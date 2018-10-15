@@ -28,9 +28,9 @@ public class Common {
     static {
         PYTHON_BUILD_NUMBERS.put("2.7.10", "2");
         PYTHON_BUILD_NUMBERS.put("2.7.14", "2");
-        PYTHON_BUILD_NUMBERS.put("2.7.15", "3");
+        PYTHON_BUILD_NUMBERS.put("2.7.15", "7");
         PYTHON_BUILD_NUMBERS.put("3.6.3", "3");
-        PYTHON_BUILD_NUMBERS.put("3.6.5", "4");
+        PYTHON_BUILD_NUMBERS.put("3.6.5", "8");
     }
 
     // This is trivial for Python 2, but for Python 3 it may contain flags from PEP 3149.
@@ -50,8 +50,8 @@ public class Common {
 
     public static final List<String> ABIS = Arrays.asList
         ("armeabi-v7a",
+         "arm64-v8a",
          "x86"
-         // TODO #5199 "arm64-v8a", "x86_64"
         );
 
     // Subdirectory name to use within assets, getFilesDir() and getCacheDir()

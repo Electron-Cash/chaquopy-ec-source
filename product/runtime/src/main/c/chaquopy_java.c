@@ -778,7 +778,7 @@ static const char *__pyx_f[] = {
   "chaquopy_java.pyx",
   "stringsource",
   "type.pxd",
-  "java\\chaquopy.pxd",
+  "java/chaquopy.pxd",
 };
 /* ForceInitThreads.proto */
 #ifndef __PYX_FORCE_INIT_THREADS
