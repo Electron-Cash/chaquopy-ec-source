@@ -15,6 +15,7 @@ configurations {
 
 repositories {
     maven { url "https://chaquo.com/maven" }
+    maven { url "https://chaquo.com/maven-test" }
 }
 
 dependencies {
@@ -28,10 +29,10 @@ dependencies {
 }
 
 task("build", group: "build") {
-    dependsOn "buildJar", "buildPom"
+    dependsOn "assemble", "writePom"
 }
 
-task("buildJar", group: "build") {
+task("assemble", group: "build") {
     def jarFilename = "${filenameStem}.jar"
     inputs.files(configurations.inputJar, configurations.runtimeJava,
                  configurations.runtimePython, configurations.runtimeJniLibs,
@@ -72,7 +73,7 @@ task("buildJar", group: "build") {
     }
 }
 
-task("buildPom", group: "build") {
+task("writePom") {
     def pomFilename = "${filenameStem}.pom"
     inputs.files configurations.inputPom
     outputs.file "$outputDir/$pomFilename"

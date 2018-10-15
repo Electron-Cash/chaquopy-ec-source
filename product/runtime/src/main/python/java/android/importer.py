@@ -9,10 +9,9 @@ import imp
 import io
 import marshal
 import os.path
-from os.path import basename, dirname, exists, join
-import pkgutil
+from os.path import basename, dirname, exists, join, relpath
+from pkgutil import get_importer
 import re
-import shutil
 import struct
 import sys
 import time
@@ -37,25 +36,20 @@ PATHNAME_PREFIX = "<chaquopy>/"
 
 
 def initialize(context, build_json, app_path):
+    initialize_importlib(context, build_json, app_path)
+    initialize_imp()
+    initialize_pkg_resources()
+
+
+def initialize_importlib(context, build_json, app_path):
     ep_json = build_json.get("extractPackages")
     extract_packages = set(ep_json.get(i) for i in range(ep_json.length()))
-
-    # In both Python 2 and 3, the standard implementations of imp.{find,load}_module do not use
-    # the PEP 302 import system. They are therefore only capable of loading from directory
-    # trees and built-in modules, and will ignore both our path_hook and the standard one for
-    # zipimport. To accommodate code which uses these functions, we provide these replacements.
-    global find_module_original, load_module_original
-    find_module_original = imp.find_module
-    load_module_original = imp.load_module
-    imp.find_module = find_module_override
-    imp.load_module = load_module_override
-
     sys.path_hooks.insert(0, partial(AssetFinder, context, extract_packages))
     asset_finders = []
     for i, asset_name in enumerate(app_path):
         entry = str(join(ASSET_PREFIX, Common.ASSET_DIR, asset_name))
         sys.path.insert(i, entry)
-        finder = pkgutil.get_importer(entry)
+        finder = get_importer(entry)
         assert isinstance(finder, AssetFinder), ("Finder for '{}' is {}"
                                                  .format(entry, type(finder).__name__))
         asset_finders.append(finder)
@@ -88,6 +82,18 @@ def initialize(context, build_json, app_path):
                     break
 
 
+def initialize_imp():
+    # In both Python 2 and 3, the standard implementations of imp.{find,load}_module do not use
+    # the PEP 302 import system. They are therefore only capable of loading from directory
+    # trees and built-in modules, and will ignore both our path_hook and the standard one for
+    # zipimport. To accommodate code which uses these functions, we provide these replacements.
+    global find_module_original, load_module_original
+    find_module_original = imp.find_module
+    load_module_original = imp.load_module
+    imp.find_module = find_module_override
+    imp.load_module = load_module_override
+
+
 # Unlike the other APIs in this file, find_module does not take names containing dots.
 def find_module_override(base_name, path=None):
     try:
@@ -98,8 +104,9 @@ def find_module_override(base_name, path=None):
     if path is None:
         path = sys.path
     for entry in path:
-        finder = pkgutil.get_importer(entry)
-        if finder is not None and hasattr(finder, "prefix"):
+        finder = get_importer(entry)
+        if finder is not None and \
+           hasattr(finder, "prefix"):  # AssetFinder and zipimport both have this attribute.
             real_name = join(finder.prefix, base_name).replace("/", ".")
             loader = finder.find_module(real_name)
             if loader is not None:
@@ -114,13 +121,19 @@ def find_module_override(base_name, path=None):
                         raise ValueError("Couldn't determine type of module '{}' from '{}'"
                                          .format(real_name, filename))
 
-                # The documentation says the returned pathname should be the empty string when
-                # a module isn't a package and "does not live in a file". However, neither
-                # Python 2 or 3 actually do this for built-in modules (see test_android).
-                # Anyway, the only thing the user can do with this value is pass it to
-                # load_module, so we should be safe to set it to any string we want.
-                pathname = PATHNAME_PREFIX + join(entry, base_name)
-                return (None, pathname, ("", "", mod_type))
+                # The documentation says that if the module "does not live in a file", the
+                # returned tuple contains file=None and pathname="". However, the the only
+                # thing the user is likely to do with these values is pass them to load_module,
+                # so we should be safe to use them however we want.
+                #
+                # * file=None causes problems for SWIG-generated code such as
+                #   tensorflow.python.pywrap_tensorflow_internal, so we return a dummy file-like
+                #   object instead.
+                # * `pathname` is used to communicate the location of the module to load_module
+                #   below.
+                return (six.BytesIO(),
+                        PATHNAME_PREFIX + join(entry, base_name),
+                        ("", "", mod_type))
 
     raise ImportError("No module named '{}' found in {}".format(base_name, path))
 
@@ -133,7 +146,7 @@ def load_module_override(load_name, file, pathname, description):
         return load_module_original(load_name, file, pathname, description)
     else:
         entry, base_name = os.path.split(pathname[len(PATHNAME_PREFIX):])
-        finder = pkgutil.get_importer(entry)
+        finder = get_importer(entry)
         real_name = join(finder.prefix, base_name).replace("/", ".")
         loader = finder.find_module(real_name)
         if real_name == load_name:
@@ -146,6 +159,27 @@ def load_module_override(load_name, file, pathname, description):
             return loader.load_module(real_name, load_name=load_name)
 
 
+def initialize_pkg_resources():
+    try:
+        import pkg_resources
+    except ImportError:
+        return
+
+    # Search for top-level .dist-info directories (see pip_install.py).
+    def distribution_finder(finder, entry, only):
+        dist_infos = set()
+        for name in finder.zip_file.namelist():
+            dir_name = dirname(name)
+            if ("/" not in dir_name) and dir_name.endswith(".dist-info"):
+                dist_infos.add(dir_name)
+        for dist_info in dist_infos:
+            yield pkg_resources.Distribution.from_location(entry, dist_info)
+
+    pkg_resources.register_finder(AssetFinder, distribution_finder)
+    pkg_resources.working_set = pkg_resources.WorkingSet()
+
+
+# Not inheriting any base class: they aren't available in Python 2.
 class AssetFinder(object):
     zip_file_lock = RLock()
     zip_file_cache = {}
@@ -236,15 +270,29 @@ class AssetFinder(object):
         return None
 
     def extract_package(self, package_rel_dir):
-        package_dir = join(self.extract_root, package_rel_dir)
-        if exists(package_dir):
-            shutil.rmtree(package_dir)  # Just do it the easy way for now.
+        filenames_in_zip = set()
         for zf in [self.zip_file] + self.other_zips:
             for info in zf.infolist():
-                if info.filename.startswith(package_rel_dir):
-                    zf.extract(info, self.extract_root)
+                if info.filename.startswith(package_rel_dir) and \
+                   not info.filename.endswith("/"):
+                    filenames_in_zip.add(info.filename)
+                    self.extract_if_changed(info, zip_file=zf)
+
+        # Remove any leftover extracted files from previous versions of the app.
+        for dirpath, _, filenames in os.walk(join(self.extract_root, package_rel_dir)):
+            rel_dirpath = relpath(dirpath, self.extract_root)
+            for name in filenames:
+                if not name.endswith(".pyc") and \
+                   join(rel_dirpath, name) not in filenames_in_zip:
+                    os.remove(join(dirpath, name))
+
+    def extract_if_changed(self, member, zip_file=None):
+        if zip_file is None:
+            zip_file = self.zip_file
+        return zip_file.extract_if_changed(member, self.extract_root)
 
 
+# Not inheriting any base class: they aren't available in Python 2.
 class AssetLoader(object):
     def __init__(self, finder, real_name, zip_info):
         self.finder = finder
@@ -256,7 +304,7 @@ class AssetLoader(object):
                 .format(__name__, type(self).__name__, self.finder, self.real_name))
 
     def load_module(self, real_name, load_name=None):
-        assert real_name == self.real_name
+        self._check_name(real_name, self.real_name)
         self.mod_name = load_name or real_name
         is_reload = self.mod_name in sys.modules
         try:
@@ -287,6 +335,10 @@ class AssetLoader(object):
     # IOError became an alias for OSError in Python 3.4, and the get_data specification was
     # changed accordingly.
     def get_data(self, path):
+        if exists(path):  # extractPackages is in effect.
+            with open(path, "rb") as f:
+                return f.read()
+
         match = re.search(r"^{}/(.+)$".format(self.finder.archive), path)
         if not match:
             raise IOError("{} can't access '{}'".format(self.finder, path))
@@ -298,22 +350,32 @@ class AssetLoader(object):
     def is_package(self, mod_name):
         return basename(self.get_filename(mod_name)).startswith("__init__.")
 
+    # Overridden in SourceFileLoader
     def get_code(self, mod_name):
-        return None  # Not implemented, but required for importlib.abc.InspectLoader.
+        return None
 
     # Overridden in SourceFileLoader
     def get_source(self, mod_name):
         return None
 
     def get_filename(self, mod_name):
-        assert mod_name == self.mod_name
+        self._check_name(mod_name)
         for ep in self.finder.extract_packages:
-            if mod_name.startswith(ep):
+            if (mod_name == ep) or mod_name.startswith(ep + "."):
                 root = self.finder.extract_root
                 break
         else:
             root = self.finder.archive
         return join(root, self.zip_info.filename)
+
+    # Most loader methods will only work for the loader's own module. However, always allow the
+    # name "__main__", which might be used by the runpy module.
+    def _check_name(self, actual_name, expected_name=None):
+        if expected_name is None:
+            expected_name = self.mod_name
+        if actual_name not in [expected_name, "__main__"]:
+            raise AssertionError("actual={!r}, expected={!r}"
+                                 .format(actual_name, expected_name))
 
 
 # Irrespective of the Python version, we use the Python 3.6 .pyc layout (with size field).
@@ -326,7 +388,10 @@ class SourceFileLoader(AssetLoader):
             mod = ModuleType(self.mod_name)
             self.set_mod_attrs(mod)
             sys.modules[self.mod_name] = mod
+        six.exec_(self.get_code(self.mod_name), mod.__dict__)
 
+    def get_code(self, mod_name):
+        self._check_name(mod_name)
         pyc_filename = join(self.finder.extract_root, self.zip_info.filename + "c")
         code = self.read_pyc(pyc_filename)
         if not code:
@@ -334,12 +399,12 @@ class SourceFileLoader(AssetLoader):
             code = compile(self.get_source_bytes(), self.get_filename(self.mod_name), "exec",
                            dont_inherit=True)
             self.write_pyc(pyc_filename, code)
-        six.exec_(code, mod.__dict__)
+        return code
 
     # Should return a bytes string in Python 2, or a unicode string in Python 3, in both cases
     # with newlines normalized to "\n".
     def get_source(self, mod_name):
-        assert mod_name == self.mod_name
+        self._check_name(mod_name)
         source_bytes = self.get_source_bytes()
         if six.PY2:
             # zipfile mode "rU" doesn't work with read() (https://bugs.python.org/issue6759),
@@ -387,66 +452,69 @@ class SourceFileLoader(AssetLoader):
 
 
 class ExtensionFileLoader(AssetLoader):
-    needed_lock = RLock()
-    needed = {}
-
     def load_module_impl(self):
-        out_filename = self.extract_if_changed(self.zip_info)
-        with self.needed_lock:
-            self.load_needed(out_filename)
+        out_filename = self.extract_so()
+        load_needed(out_filename)
         # imp.load_{source,compiled,dynamic} are undocumented in Python 3, but still present.
         mod = imp.load_dynamic(self.mod_name, out_filename)
         sys.modules[self.mod_name] = mod
         self.set_mod_attrs(mod)
 
-    # Before API level 18, the dynamic linker only searches for DT_NEEDED libraries in system
-    # directories, so we need to load them manually in dependency order (#5323).
-    def load_needed(self, filename):
-        with open(filename, "rb") as so_file:
-            ef = ELFFile(so_file)
-            dynamic = ef.get_section_by_name(".dynamic")
-            if not dynamic:
-                return
+    # In API level 22 and older, when asked to load a library with the same basename as one
+    # already loaded, the dynamic linker will return the existing library. Work around this by
+    # loading through a uniquely-named symlink.
+    def extract_so(self):
+        filename = self.finder.extract_if_changed(self.zip_info)
+        linkname = join(dirname(filename), self.mod_name + ".so")
+        if linkname != filename:
+            if exists(linkname):
+                os.remove(linkname)
+            os.symlink(filename, linkname)
+        return linkname
 
-            for tag in dynamic.iter_tags():
-                if tag.entry.d_tag == "DT_NEEDED":
-                    soname = tag.needed
-                    if soname in self.needed:
-                        continue
 
-                    try:
-                        # We don't need to worry about other_zips because all native modules
-                        # and libraries for a given ABI will always end up in the same ZIP.
-                        zip_info = self.finder.zip_file.getinfo("chaquopy/lib/" + soname)
-                    except KeyError:
-                        # Maybe it's a system library, or one of the libraries loaded by
-                        # AndroidPlatform.loadNativeLibs.
-                        continue
-                    needed_filename = self.extract_if_changed(zip_info)
-                    self.load_needed(needed_filename)
+needed_lock = RLock()
+needed_loaded = {}
 
-                    # Before API 23, the only dlopen mode was RTLD_GLOBAL, and RTLD_LOCAL was
-                    # ignored. From API 23, RTLD_LOCAL is available and the default, just like
-                    # in Linux (#5323). We use RTLD_GLOBAL, so that the library's symbols are
-                    # available to subsequently-loaded libraries.
-                    dll = ctypes.CDLL(needed_filename, ctypes.RTLD_GLOBAL)
+# Before API level 18, the dynamic linker only searches for DT_NEEDED libraries in system
+# directories, so we need to load them manually in dependency order (#5323).
+#
+# It's not an error if we don't find a library: maybe it's a system library, or one of the
+# libraries loaded by AndroidPlatform.loadNativeLibs.
+def load_needed(filename):
+    with needed_lock, open(filename, "rb") as so_file:
+        ef = ELFFile(so_file)
+        dynamic = ef.get_section_by_name(".dynamic")
+        if not dynamic:
+            raise Exception(filename + " has no .dynamic section")
 
-                    # The library isn't currently closed when the CDLL object is garbage
-                    # collected, but this isn't documented, so keep a reference for safety.
-                    self.needed[soname] = dll
+        for tag in dynamic.iter_tags():
+            if tag.entry.d_tag != "DT_NEEDED":
+                continue
+            soname = tag.needed
+            if soname in needed_loaded:
+                continue
 
-    def extract_if_changed(self, zip_info):
-        out_filename = join(self.finder.extract_root, zip_info.filename)
-        if exists(out_filename):
-            existing_stat = os.stat(out_filename)
-            need_extract = (existing_stat.st_size != zip_info.file_size or
-                            existing_stat.st_mtime != timegm(zip_info.date_time))
-        else:
-            need_extract = True
+            for entry in sys.path:
+                finder = get_importer(entry)
+                if not isinstance(finder, AssetFinder):
+                    continue
+                try:
+                    zip_info = finder.zip_file.getinfo("chaquopy/lib/" + soname)
+                except KeyError:
+                    continue
+                needed_filename = finder.extract_if_changed(zip_info)
+                load_needed(needed_filename)
 
-        if need_extract:
-            self.finder.zip_file.extract(zip_info, self.finder.extract_root)
-        return out_filename
+                # Before API 23, the only dlopen mode was RTLD_GLOBAL, and RTLD_LOCAL was
+                # ignored. From API 23, RTLD_LOCAL is available and used by default, just like
+                # in Linux (#5323). We use RTLD_GLOBAL, so that the library's symbols are
+                # available to subsequently-loaded libraries.
+                #
+                # It doesn't look like the library is closed when the CDLL object is garbage
+                # collected, but this isn't documented, so keep a reference for safety.
+                needed_loaded[soname] = ctypes.CDLL(needed_filename, ctypes.RTLD_GLOBAL)
+                break
 
 
 # These class names are based on the standard Python 3 loaders from importlib.machinery, though
@@ -486,6 +554,19 @@ class ConcurrentZipFile(ZipFile):
             # ZipFile.extract does not set any metadata (https://bugs.python.org/issue32170).
             out_filename = ZipFile.extract(self, member, target_dir)
             os.utime(out_filename, (time.time(), timegm(member.date_time)))
+        return out_filename
+
+    def extract_if_changed(self, member, target_dir):
+        if not isinstance(member, ZipInfo):
+            member = self.getinfo(member)
+        need_extract = True
+        out_filename = join(target_dir, member.filename)
+        if exists(out_filename):
+            existing_stat = os.stat(out_filename)
+            need_extract = (existing_stat.st_size != member.file_size or
+                            existing_stat.st_mtime != timegm(member.date_time))
+        if need_extract:
+            self.extract(member, target_dir)
         return out_filename
 
     def read(self, member):
