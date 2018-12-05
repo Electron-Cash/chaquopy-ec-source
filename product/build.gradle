@@ -1,11 +1,22 @@
 buildscript {
     repositories {
-        jcenter()
+        mavenCentral()  // https://github.com/Abnaxos/markdown-doclet/issues/88
+    }
+    dependencies {
+        classpath 'ch.raffael.pegdown-doclet:pegdown-doclet:1.3'
     }
 }
 
-allprojects {
-     repositories {
-         jcenter()
-     }
+subprojects {
+    def repoRoot = "$rootProject.projectDir/.."
+    version = file("$repoRoot/VERSION.txt").text.trim()
+
+    repositories {
+        mavenCentral()
+    }
+
+    apply plugin: 'maven-publish'
+    publishing.repositories {
+        maven { url = "$repoRoot/maven" }
+    }
 }

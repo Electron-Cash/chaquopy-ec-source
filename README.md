@@ -12,7 +12,7 @@ A Linux x86-64 machine with Docker is required. If necessary, install Docker usi
 
 Make sure all submodules are up to date:
 
-    git submodule init && git submodule update
+    git submodule init && git submodule sync && git submodule update
 
 Then run the script `build-maven.sh`. This will generate a `maven` directory containing the
 Chaquopy repository.
