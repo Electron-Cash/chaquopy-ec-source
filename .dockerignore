@@ -1,6 +1,16 @@
 *
 !docker-entrypoint.sh
 !product
-product/*/build
 !target/package-target.sh
 !VERSION.txt
+
+# For Markov jupyter.dockerfile
+!apps
+!demo
+!maven
+!server/pypi/dist
+
+**/.gradle/
+**/.idea/
+**/build/
+**/local.properties
