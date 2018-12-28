@@ -4,7 +4,7 @@
 !target/package-target.sh
 !VERSION.txt
 
-# For Markov jupyter.dockerfile
+# For app dockerfiles.
 !apps
 !demo
 !maven
