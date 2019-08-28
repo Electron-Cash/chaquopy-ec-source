@@ -4,11 +4,13 @@ import com.chaquo.python.Common;
 
 group = "com.chaquo.python.runtime"
 
-void addArtifact(String name, Task task, Object filename, String abi=null) {
+
+void addArtifact(Task task, Object filename, String abi=null) {
     File f = file(filename)
     def dotPos = f.name.lastIndexOf(".")
+    def name = f.name.substring(0, dotPos)
     def pub = publishing.publications.maybeCreate(name, MavenPublication)
-    pub.artifactId = f.name.substring(0, dotPos)
+    pub.artifactId = name
     pub.artifact(f) {
         builtBy task
         if (abi != null) {
@@ -21,7 +23,7 @@ void addArtifact(String name, Task task, Object filename, String abi=null) {
 sourceSets.main.java.srcDirs += ["../buildSrc/src/main/java"]
 sourceCompatibility = 7
 jar { archiveName = "chaquopy_java.jar" }
-addArtifact("java", jar, jar.archivePath)
+addArtifact(jar, jar.archivePath)
 
 task("zipPython", type: Zip, group: "build") {
     from fileTree("src/main/python") {
@@ -30,9 +32,9 @@ task("zipPython", type: Zip, group: "build") {
         includeEmptyDirs false
     }
     destinationDir buildDir
-    archiveName Common.ASSET_BOOTSTRAP
+    archiveName Common.assetZip(Common.ASSET_BOOTSTRAP)
 }
-addArtifact("python", zipPython, zipPython.archivePath)
+addArtifact(zipPython, zipPython.archivePath)
 
 
 // The following properties file should be created manually. It's also used in
@@ -81,6 +83,7 @@ for (abi in Common.ABIS) {
         executable "$sdkCmakeDir/bin/cmake"
         args "-GNinja", "-DCMAKE_MAKE_PROGRAM=$sdkCmakeDir/bin/ninja",
              "-DCMAKE_BUILD_TYPE=$cmakeBuildType",
+             "-DCHAQUOPY_SRC_DIR=src/main/c",
              "-DCHAQUOPY_LIBS=$pyPlusVersion"
 
         def pyDir = "$crystaxDir/sources/python/$Common.PYTHON_VERSION_SHORT"
@@ -101,6 +104,7 @@ for (abi in Common.ABIS) {
         executable "$sdkCmakeDir/bin/cmake"
         args "--build", cmakeBuildSubdir
     }
-    addArtifact("jni", cmakeBuild, "$cmakeBuildSubdir/libchaquopy_java.so", abi)
-    addArtifact("module", cmakeBuild, "$cmakeBuildSubdir/chaquopy.so", abi)
+    addArtifact(cmakeBuild, "$cmakeBuildSubdir/libchaquopy_java.so", abi)
+    addArtifact(cmakeBuild, "$cmakeBuildSubdir/chaquopy.so", abi)
+    addArtifact(cmakeBuild, "$cmakeBuildSubdir/chaquopy_android.so", abi)
 }
