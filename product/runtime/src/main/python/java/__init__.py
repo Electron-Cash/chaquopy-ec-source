@@ -1,4 +1,4 @@
-"""Copyright (c) 2018 Chaquo Ltd. All rights reserved.
+"""Copyright (c) 2020 Chaquo Ltd. All rights reserved.
 
 Chaquopy contains parts of PyJNIus. The following notice applies to those parts:
 
@@ -23,24 +23,18 @@ Chaquopy contains parts of PyJNIus. The following notice applies to those parts:
     THE SOFTWARE.
 """
 
-from __future__ import absolute_import, division, print_function
-
 # On Android, the native module is stored separately to the Python modules.
 from pkgutil import extend_path
 __path__ = extend_path(__path__, __name__)
 
-from .chaquopy import *  # noqa
-from .chaquopy import chaquopy_init
-from .primitive import *  # noqa
+from .chaquopy import (cast, chaquopy_init, detach, jarray, jclass, set_import_enabled,
+                       dynamic_proxy, static_proxy, constructor, method, Override)
+from .primitive import jvoid, jboolean, jbyte, jshort, jint, jlong, jfloat, jdouble, jchar
 
 # This is the public API.
 __all__ = [
-    # .chaquopy
-    "detach", "cast", "jclass",
+    "cast", "detach", "jarray", "jclass", "set_import_enabled",
     "dynamic_proxy", "static_proxy", "constructor", "method", "Override",
-    "jarray", "set_import_enabled",
-
-    # .primitive
     "jvoid", "jboolean", "jbyte", "jshort", "jint", "jlong", "jfloat", "jdouble", "jchar",
 ]
 

@@ -34,6 +34,10 @@ public class AndroidPlatform extends Python.Platform {
 
         // Renamed to stdlib-common.zip in 6.2.2.
         "stdlib.zip",
+
+        // Renamed to .imy in 8.0.0.
+        "bootstrap.zip",
+        "stdlib-common.zip"
     };
 
     private static final String[] OBSOLETE_CACHE = {
@@ -136,6 +140,7 @@ public class AndroidPlatform extends Python.Platform {
         // AssetManager.list() is surprisingly slow (20 ms per call on the API 23 emulator), so
         // we'll avoid using it.
         Set<String> unextracted = new HashSet<>(assets);
+        Set<String> directories = new HashSet<>();
         SharedPreferences.Editor spe = sp.edit();
         for (Iterator i = assetsJson.keys(); i.hasNext(); /**/) {
             String path = (String) i.next();
@@ -143,6 +148,9 @@ public class AndroidPlatform extends Python.Platform {
                 if (path.equals(ea) || path.startsWith(ea + "/")) {
                     extractAsset(assetsJson, spe, path);
                     unextracted.remove(ea);
+                    if (path.startsWith(ea + "/")) {
+                        directories.add(ea);
+                    }
                     break;
                 }
             }
@@ -150,9 +158,18 @@ public class AndroidPlatform extends Python.Platform {
         if (! unextracted.isEmpty()) {
             throw new RuntimeException("Failed to extract assets: " + unextracted);
         }
+        for (String dir : directories) {
+            File outDir = new File(mContext.getFilesDir(), Common.ASSET_DIR  + "/" + dir);
+            for (String name : outDir.list()) {
+                if (!assetsJson.has(dir + "/" + name)) {
+                    new File(outDir, name).delete();
+                }
+            }
+        }
         spe.apply();
     }
 
+    // TODO #5677: multi-process race conditions.
     private void extractAsset(JSONObject assetsJson, SharedPreferences.Editor spe,
                               String path) throws IOException, JSONException {
         String fullPath = Common.ASSET_DIR  + "/" + path;
@@ -222,15 +239,13 @@ public class AndroidPlatform extends Python.Platform {
     }
 
     private void loadNativeLibs() {
-        // Libraries must be loaded in dependency order before API level 18 (#5323).
-        System.loadLibrary("crystax");
-
-        // build_target_openssl.sh changes the SONAMEs to avoid clashing with the system copies.
-        // This isn't necessary for SQLite because the system copy is just "libsqlite.so", with
-        // no "3".
+        // Libraries must be loaded in dependency order before API level 18 (#5323). However,
+        // even if our minimum API level increases to 18 or higher in the future, we should
+        // still keep pre-loading the OpenSSL and SQLite libraries, because we can't guarantee
+        // that our lib directory will always be on the LD_LIBRARY_PATH (#5563).
         System.loadLibrary("crypto_chaquopy");
         System.loadLibrary("ssl_chaquopy");
-        System.loadLibrary("sqlite3");
+        System.loadLibrary("sqlite3_chaquopy");
         System.loadLibrary("python" + Common.PYTHON_SUFFIX);
         System.loadLibrary("chaquopy_java");
     }

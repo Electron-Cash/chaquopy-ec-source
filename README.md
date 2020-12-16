@@ -1,6 +1,6 @@
 # Introduction
 
-Copyright (c) 2018 Chaquo Ltd
+Copyright (c) 2020 Chaquo Ltd
 
 This repository contains Chaquopy source code for use with the Electron Cash Android app. It is
 licensed only to that project, and is not open-source.

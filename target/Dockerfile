@@ -1,36 +1,50 @@
-# The toolchain and libcrystax builds require a large build context and take several minutes
-# even if Docker ultimately decides to use its cache, so we keep them in a separate Dockerfile,
-# and exclude them from this context using .dockerignore.
-FROM chaquopy-crystax
+FROM chaquopy-base
 
-RUN rm -r src/crystax/platform/ndk/build/tools
-COPY crystax/platform/ndk/build/tools/prebuilt-common.sh \
-     crystax/platform/ndk/build/tools/ndk-common.sh \
-     crystax/platform/ndk/build/tools/dev-defaults.sh \
-     src/crystax/platform/ndk/build/tools/
+# When moving to a new version of the NDK, carefully review the following:
+# * The release notes (https://developer.android.com/ndk/downloads/revision_history)
+# * https://android.googlesource.com/platform/ndk/+/ndk-release-rXX/docs/BuildSystemMaintainers.md,
+#   where XX is the NDK version. Check over the `master` version of that document as well.
+RUN yes | android-sdk/cmdline-tools/tools/bin/sdkmanager "ndk;18.1.5063045"
+
+COPY build-toolchains.sh build-toolchain.sh build-common.sh target/
+RUN target/build-toolchains.sh android-sdk/ndk/* "arm64-v8a armeabi-v7a x86 x86_64"
+COPY for-each-abi.sh target/
 
 RUN apt-get update && \
-    apt-get install -y perl-modules
-COPY openssl src/openssl
-COPY crystax/platform/ndk/build/tools/build-target-openssl.sh \
-     src/crystax/platform/ndk/build/tools/
-COPY crystax/platform/ndk/sources/openssl src/crystax/platform/ndk/sources/openssl
-RUN src/crystax/platform/ndk/build/tools/build-target-openssl.sh \
-        --verbose --ndk-dir=$(pwd)/crystax --abis=$abis src/openssl && \
-    rm -r /tmp/ndk-*
+    apt-get -y install bison flex g++ make
 
-# Python 3.6 isn't included in this version of Debian, so use a third-party build.
+COPY build-common-tools.sh target/
+
+# OpenSSL
 RUN apt-get update && \
-    apt-get install -y patch && \
-    wget https://github.com/chriskuehl/python3.6-debian-stretch/releases/download/v3.6.3-1-deb9u1/{python3.6,python3.6-minimal,libpython3.6,libpython3.6-minimal,libpython3.6-stdlib}_3.6.3-1.deb9u1_amd64.deb && \
-    apt install -y ./*.deb && \
-    rm *.deb
+    apt-get install -y patchelf perl-modules
+COPY openssl target/openssl
+COPY build-openssl.sh target/
+RUN target/for-each-abi.sh target/build-openssl.sh
 
-COPY python src/python
-COPY crystax/platform/ndk/build/tools/build-target-python.sh \
-     src/crystax/platform/ndk/build/tools/
-COPY crystax/platform/ndk/build/tools/build-target-python \
-     src/crystax/platform/ndk/build/tools/build-target-python
-RUN src/crystax/platform/ndk/build/tools/build-target-python.sh \
-        --verbose --ndk-dir=$(pwd)/crystax --abis=$abis src/python && \
-    rm -r /tmp/ndk-*
+# SQLite
+RUN apt-get update && \
+    apt-get install -y gcc tclsh
+COPY sqlite target/sqlite
+COPY python/config.sub target/python/
+COPY build-sqlite.sh target/
+RUN target/for-each-abi.sh target/build-sqlite.sh
+
+# libffi
+COPY build-libffi.sh target/
+RUN target/for-each-abi.sh target/build-libffi.sh
+
+# bzip2
+COPY build-bzip2.sh target
+RUN target/for-each-abi.sh target/build-bzip2.sh
+
+# xz (for lzma module)
+COPY build-xz.sh target
+RUN target/for-each-abi.sh target/build-xz.sh
+
+# Python
+RUN apt-get update && \
+    apt-get install -y python3.8
+COPY python target/python
+COPY build-python.sh target/
+RUN target/for-each-abi.sh target/build-python.sh

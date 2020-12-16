@@ -1,7 +1,10 @@
 cmake_minimum_required(VERSION 3.4.1)
 project(runtime LANGUAGES C)
 
-set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -s")
+# This warning appears on Python 3.8 only (https://github.com/python/cpython/pull/14193).
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-deprecated-declarations")
+
+set(CMAKE_SHARED_LINKER_FLAGS_RELEASE "${CMAKE_SHARED_LINKER_FLAGS_RELEASE} -s")
 
 include_directories(
     src/main/c

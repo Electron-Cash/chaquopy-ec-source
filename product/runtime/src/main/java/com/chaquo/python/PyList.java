@@ -2,41 +2,55 @@ package com.chaquo.python;
 
 import java.util.*;
 
-import static com.chaquo.python.ContainerUtils.*;
-
 
 class PyList extends AbstractList<PyObject> {
     private final PyObject obj;
+    private final MethodCache methods;
 
     public PyList(PyObject obj) {
         this.obj = obj;
-        getAttr(obj, "__getitem__");
-        getAttr(obj, "__len__");
+        methods = new MethodCache(obj);
+        methods.get("__getitem__");
+        methods.get("__len__");
     }
 
-    // We check bounds before each call, rather than just trying the call and catching the
-    // IndexError, because Python accepts indexes which the Java interface doesn't:
-    //   * Negative indexes (relative to the end)
-    //   * Python `insert` accepts any positive or negative integer: if it's out of bounds then
-    //     the element will be added last or first respectively.
-    private void checkBounds(int index, int min, int max) {
-        if (index < min || index > max) {
-            // Similar to Python IndexError message.
-            throw new IndexOutOfBoundsException(
-                obj.type().get("__name__").toString() + " index out of range");
+    // Python accepts negative indices, but the Java interface should reject them. We don't
+    // usually check the upper bound, because that would make a redundant call to `__len__`.
+    // Instead, the caller should catch IndexError.
+    private void checkLowerBound(int index) {
+        if (index < 0) {
+            throw outOfBounds(index);
         }
+    }
+
+    private RuntimeException maybeOutOfBounds(int index, PyException e) {
+        if (e.getMessage().startsWith("IndexError:")) {
+            return outOfBounds(index);
+        } else {
+            return e;
+        }
+    }
+
+    private IndexOutOfBoundsException outOfBounds(int index) {
+        // Same wording as ArrayList exception.
+        return new IndexOutOfBoundsException(
+            "Invalid index " + index + ", size is " + size());
     }
 
 
     // === Read methods ======================================================
 
     @Override public int size() {
-        return callAttr(obj, "__len__").toInt();
+        return methods.get("__len__").call().toInt();
     }
 
     @Override public PyObject get(int index) {
-        checkBounds(index, 0, size() - 1);
-        return callAttr(obj, "__getitem__", index);
+        checkLowerBound(index);
+        try {
+            return methods.get("__getitem__").call(index);
+        } catch (PyException e) {
+            throw maybeOutOfBounds(index, e);
+        }
     }
 
 
@@ -62,24 +76,37 @@ class PyList extends AbstractList<PyObject> {
     //
     // Since users of this API are more likely to be reading containers than modifying them,
     // we'll prioritize accordingly.
+    //
+    // A possible future improvement would be to add a PyObject method:
+    //     List<T> asList(Class<T> elementType)
+    // which would allow the PyList to call toJava and fromJava automatically.
 
     public PyObject set(int index, PyObject element) {
         PyObject oldElement = get(index);  // Includes bounds check.
-        callAttr(obj, "__setitem__", index, element);
+        methods.get("__setitem__").call(index, element);
         return oldElement;
     }
 
     @Override public void add(int index, PyObject element) {
-        checkBounds(index, 0, size());
-        callAttr(obj, "insert", index, element);
+        // For this method we need to check the upper bound as well, because `insert` accepts
+        // any index and truncates it to the length of the sequence.
+        checkLowerBound(index);
+        if (index > size()) {
+            throw outOfBounds(index);
+        }
+        methods.get("insert").call(index, element);  // Never throws IndexError.
     }
 
     @Override public PyObject remove(int index) {
-        checkBounds(index, 0, size() - 1);
-        return callAttr(obj, "pop", index);
+        checkLowerBound(index);
+        try {
+            return methods.get("pop").call(index);
+        } catch (PyException e) {
+            throw maybeOutOfBounds(index, e);
+        }
     }
 
     @Override public void clear() {
-        callAttr(obj, "clear");
+        methods.get("clear").call();
     }
 }

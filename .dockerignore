@@ -1,6 +1,7 @@
 *
 !docker-entrypoint.sh
 !product
+!server/license/check_ticket.py
 !target/package-target.sh
 !VERSION.txt
 
@@ -8,6 +9,8 @@
 !apps
 !demo
 !maven
+!server/pypi/packages
+!server/pypi/pkgtest
 !server/pypi/dist
 !server/pypi/piptest
 

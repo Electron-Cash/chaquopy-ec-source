@@ -4,34 +4,15 @@
 
 FROM chaquopy-target
 
-RUN apt-get update && \
-    apt-get install -y openjdk-8-jdk-headless
-RUN wget -q -O - https://bootstrap.pypa.io/get-pip.py | python3.6
-
-RUN filename=sdk-tools-linux-4333796.zip && \
-    wget https://dl.google.com/android/repository/$filename && \
-    mkdir android-sdk && \
-    unzip -q -d android-sdk $filename && \
-    rm $filename
-
-RUN yes | android-sdk/tools/bin/sdkmanager 'cmake;3.6.4111459'
-
-# Not installing the NDK with sdkmanager, because there's no way to select a specific version
-# to make the build reproducible.
-RUN filename=android-ndk-r17c-linux-x86_64.zip && \
-    wget https://dl.google.com/android/repository/$filename && \
-    unzip -q $filename && \
-    rm $filename && \
-    mv android-ndk-* android-ndk
-
 COPY product/buildSrc product/buildSrc
 RUN platform_ver=$(grep COMPILE_SDK_VERSION \
                    product/buildSrc/src/main/java/com/chaquo/python/Common.java \
                    | sed 's|.* = \(.*\);.*|\1|'); \
-    yes | android-sdk/tools/bin/sdkmanager "platforms;android-$platform_ver"
+    yes | android-sdk/cmdline-tools/tools/bin/sdkmanager \
+        "cmake;3.6.4111459" "platforms;android-$platform_ver"
 
 COPY product/runtime/requirements-build.txt product/runtime/
-RUN pip install -r product/runtime/requirements-build.txt
+RUN pip3 install -r product/runtime/requirements-build.txt
 
 COPY product/build.gradle product/gradlew product/settings.gradle product/
 COPY product/gradle product/gradle
@@ -44,8 +25,8 @@ COPY product/runtime product/runtime
 ARG license_mode
 
 RUN (echo sdk.dir=$(pwd)/android-sdk && \
-     echo ndk.dir=$(pwd)/android-ndk && \
-     echo crystax.dir=$(pwd)/crystax && \
+     echo -n ndk.dir= && \
+     echo $(pwd)/android-sdk/ndk/* && \
      echo chaquopy.license_mode=$license_mode) > product/local.properties
 
 COPY VERSION.txt ./
@@ -56,6 +37,8 @@ ARG build_type=Release
 RUN product/gradlew -p product -P cmakeBuildType=$build_type \
     gradle-plugin:publish runtime:publish
 
+RUN apt-get update && \
+    apt-get install -y zip
 COPY docker-entrypoint.sh .
 COPY target/package-target.sh target/
 ENTRYPOINT ["./docker-entrypoint.sh"]

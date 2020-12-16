@@ -1,12 +1,9 @@
-"""Copyright (c) 2018 Chaquo Ltd. All rights reserved."""
-
-from __future__ import absolute_import, division, print_function
+"""Copyright (c) 2020 Chaquo Ltd. All rights reserved."""
 
 import ctypes
 from functools import total_ordering
-from java._vendor import six
 
-from .chaquopy import check_range_char, check_range_float32, native_str
+from . import chaquopy
 
 __all__ = ["primitives_by_name", "primitives_by_sig",
            "Primitive", "NumericPrimitive", "IntPrimitive", "FloatPrimitive",
@@ -23,9 +20,9 @@ class PrimitiveMeta(type):
             primitives_by_sig[cls.sig] = cls
 
 @total_ordering
-class Primitive(six.with_metaclass(PrimitiveMeta, object)):
+class Primitive(metaclass=PrimitiveMeta):
     def __repr__(self):
-        return "{}({})".format(type(self).__name__, self.value)
+        return f"{type(self).__name__}({self.value!r})"
 
     def __eq__(self, other):
         if isinstance(other, Primitive):
@@ -68,7 +65,7 @@ class NumericPrimitive(Primitive):
 
 class IntPrimitive(NumericPrimitive):
     def __init__(self, value, truncate=False):
-        if not (isinstance(value, six.integer_types) and not isinstance(value, bool)):
+        if not (isinstance(value, int) and not isinstance(value, bool)):
             raise TypeError("an integer is required")
         self.value = self.truncator(value).value
         if not truncate and self.value != value:
@@ -97,7 +94,7 @@ class jlong(IntPrimitive):
 
 class FloatPrimitive(NumericPrimitive):
     def __init__(self, value, truncate=False):
-        if not (isinstance(value, (float, six.integer_types)) and not isinstance(value, bool)):
+        if not (isinstance(value, (float, int)) and not isinstance(value, bool)):
             raise TypeError("a float or integer is required")
         self.value = float(value)
 
@@ -109,7 +106,7 @@ class jfloat(FloatPrimitive):
         FloatPrimitive.__init__(self, value)
         self.value = ctypes.c_float(value).value
         if not truncate:
-            check_range_float32(value)
+            chaquopy.check_range_float32(value)
 
 class jdouble(FloatPrimitive):
     name = "double"
@@ -121,8 +118,5 @@ class jchar(Primitive):
     sig = "C"
 
     def __init__(self, value):
-        check_range_char(value)
-        self.value = six.text_type(value)
-
-    def __repr__(self):
-        return native_str(u"{}('{}')".format(type(self).__name__, self.value))
+        chaquopy.check_range_char(value)
+        self.value = value
