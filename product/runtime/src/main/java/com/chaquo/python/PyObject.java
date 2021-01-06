@@ -3,17 +3,22 @@ package com.chaquo.python;
 import java.lang.ref.*;
 import java.lang.reflect.*;
 import java.util.*;
+import org.jetbrains.annotations.*;
 
+import static java.util.Objects.requireNonNull;
 
-/** Interface to a Python object.
+/** <p>Interface to a Python object.</p>
  *
- * * Python `None` is represented by Java `null`. Other `PyObject`s can be converted to their Java
- *   equivalents using {@link #toJava toJava()}.
- * * If a Python object is retrieved for which a PyObject already exists, the same PyObject will be
- *   returned.
+ * <ul>
+ * <li>Python {@code None} is represented by Java {@code null}. Other PyObjects can be
+ * converted to their Java equivalents using {@link #toJava toJava()}.</li>
  *
- * Unless otherwise specified, all methods in this class throw {@link PyException} on failure.*/
-@SuppressWarnings({"deprecation", "DeprecatedIsStillUsed"})
+ * <li>If a Python object is retrieved for which a PyObject already exists, the same
+ * PyObject will be returned.</li>
+ * </ul>
+ *
+ * <p>Unless otherwise specified, all methods in this class throw {@link PyException} on
+ * failure.</p> */
 public class PyObject extends AbstractMap<String,PyObject> implements AutoCloseable {
     private static final Map<Long, WeakReference<PyObject>> cache = new HashMap<>();
 
@@ -42,16 +47,17 @@ public class PyObject extends AbstractMap<String,PyObject> implements AutoClosea
         this.addr = addr;
     }
 
-    /** Releases the reference to the Python object. Unless the object represents an expensive
-     * resource, there's no need to call this method directly: it will be called automatically
-     * when the PyObject is garbage-collected.
+    /** <p>Releases the reference to the Python object. Unless the object represents an
+     * expensive resource, there's no need to call this method: it will be called
+     * automatically when the PyObject is garbage-collected.</p>
      *
-     * After calling `close()`, the PyObject can no longer be used. If there are no other
-     * references to the underlying object, it may be destroyed by Python. If it continues to exist
-     * and is retrieved by Java code again, a new PyObject will be returned.
+     * <p>After calling {@code close}, the PyObject can no longer be used. If there are no
+     * other references to the underlying object, it may be destroyed by Python. If it
+     * continues to exist and is retrieved by Java code again, a new PyObject will be
+     * returned.</p>
      *
-     * Caution: any references to the same Python object elsewhere in your program will be
-     * represented by the same PyObject, so they will all be invalidated by this call. */
+     * <p>Caution: any references to the same Python object elsewhere in your program will be
+     * represented by the same PyObject, so they will all be invalidated by this call.</p> */
     public void close() {
         if (addr == 0) return;
         synchronized (cache) {
@@ -71,126 +77,126 @@ public class PyObject extends AbstractMap<String,PyObject> implements AutoClosea
     }
     private native void closeNative();
 
-    /** Gives the given Java object a presence in the Python virtual machine.
-     * There's usually no need to call this method directly: it will be called automatically by the
-     * methods of this class which take `Object` parameters.
+    /** <p>Converts the given Java object to a Python object. There's usually no need to call
+     * this method: it will be called automatically by the methods of this class which take
+     * {@code Object} parameters.</p>
      *
-     * For details of how Java objects are represented in Python, see the
-     * <a href="../../../../python.html#data-types-overview">Python API</a>. */
+     * <p>For details of how Java objects are represented in Python, see the
+     * <a href="../../../../python.html#data-types-overview">Python API</a>.</p> */
     public static PyObject fromJava(Object o) {
         return getInstance(fromJavaNative(o));
     }
     private static native long fromJavaNative(Object o);
 
-    /** Converts the Python object to the given Java type.
+    /** <p>Converts the Python object to the given Java type.</p>
      *
-     * If `klass` is a primitive type (such as `int`), or an immutable value type (such as
-     * `Integer` or `String`), and the Python object is compatible with it, an equivalent Java
-     * object will be returned. However, it's more readable to use the type-specific methods
-     * like {@link #toInt}, {@link #toString}, etc.
+     * <p>If {@code klass} is a primitive type such as {@code int}, or an immutable value type
+     * such as {@code Integer} or {@code String}, and the Python object is compatible with it,
+     * an equivalent Java object will be returned. However, it's more efficient to use the
+     * specific methods like {@link #toInt}, {@link #toString}, etc.</p>
      *
-     * If `klass` is an array type, and the Python object is a <a
+     * <p>If {@code klass} is an array type, and the Python object is a <a
      * href="https://docs.python.org/3/glossary.html#term-sequence">sequence</a>, then a copy
      * of the sequence will be returned as a new array. In general, each element will be
-     * converted as if `toJava` was called on it recursively. However, when converting a Python
-     * `bytes` or `bytearray` object to a Java `byte[]` array, there is an
-     * unsigned-to-signed conversion: Python values 128 to 255 will be mapped to Java values
-     * -128 to -1.
+     * converted as if {@code toJava} was called on it recursively. However, when converting a
+     * Python {@code bytes} or {@code bytearray} object to a Java {@code byte[]} array, there
+     * is an unsigned-to-signed conversion: Python values 128 to 255 will be mapped to Java
+     * values -128 to -1.</p>
      *
-     * If the Python object is a <a href="../../../../python.html#java.jclass">jclass</a> or <a
-     * href="../../../../python.html#java.jarray">jarray</a> object which is compatible with
-     * `klass`, the underlying Java object will be returned.
+     * <p>If the Python object is a <a href="../../../../python.html#java.jclass">jclass</a> or
+     * <a href="../../../../python.html#java.jarray">jarray</a> object which is compatible with
+     * {@code klass}, the underlying Java object will be returned.</p>
      *
-     * Otherwise, a `ClassCastException` will be thrown. */
-    public native <T> T toJava(Class<T> klass);
+     * <p>Otherwise, a {@code ClassCastException} will be thrown.</p> */
+    public native @NotNull <T> T toJava(@NotNull Class<T> klass);
 
 
     // === Primitive conversions =============================================
 
-    /** Converts a Python `bool` to a Java `boolean`.
-     * @throws ClassCastException if the Python object is not of a compatible type */
+    /** Converts a Python {@code bool} to a Java {@code boolean}.
+     * @throws ClassCastException if the Python object is not compatible */
     public native boolean toBoolean();
 
-    /** Converts a Python `int` to a Java `byte`.
-     * @throws ClassCastException if the Python object is not of a compatible type */
+    /** Converts a Python {@code int} to a Java {@code byte}.
+     * @throws ClassCastException if the Python object is not compatible */
     public native byte toByte();
 
-    /** Converts a 1-character Python string to a Java `char`.
-     * @throws ClassCastException if the Python object is not of a compatible type */
+    /** Converts a 1-character Python string to a Java {@code char}.
+     * @throws ClassCastException if the Python object is not compatible */
     public native char toChar();
 
-    /** Converts a Python `int` to a Java `short`.
-     * @throws ClassCastException if the Python object is not of a compatible type */
+    /** Converts a Python {@code int} to a Java {@code short}.
+     * @throws ClassCastException if the Python object is not compatible */
     public native short toShort();
 
-    /** Converts a Python `int` to a Java `int`.
-     * @throws ClassCastException if the Python object is not of a compatible type */
+    /** Converts a Python {@code int} to a Java {@code int}.
+     * @throws ClassCastException if the Python object is not compatible */
     public native int toInt();
 
-    /** Converts a Python `int` to a Java `long`.
-     * @throws ClassCastException if the Python object is not of a compatible type */
+    /** Converts a Python {@code int} to a Java {@code long}.
+     * @throws ClassCastException if the Python object is not compatible */
     public native long toLong();
 
-    /** Converts a Python `float` or `int`  to a Java `float`.
-     * @throws ClassCastException if the Python object is not of a compatible type */
+    /** Converts a Python {@code float} or {@code int}  to a Java {@code float}.
+     * @throws ClassCastException if the Python object is not compatible */
     public native float toFloat();
 
-    /** Converts a Python `float` or `int` to a Java `double`.
-     * @throws ClassCastException if the Python object is not of a compatible type */
+    /** Converts a Python {@code float} or {@code int} to a Java {@code double}.
+     * @throws ClassCastException if the Python object is not compatible */
     public native double toDouble();
 
 
     // === Container views ===================================================
 
-    /** Returns a view of the Python object as a list. The view is backed by the object, so
-     * changes to the object are reflected in the view, and vice-versa.
+    /** <p>Returns a view of the Python object as a list. The view is backed by the object, so
+     * changes to the object are reflected in the view, and vice-versa.</p>
      *
-     * To add Java objects to the Python container through the view, first convert them using
-     * {@link #fromJava fromJava}.
+     * <p>To add Java objects to the Python container through the view, first convert them
+     * using {@link #fromJava fromJava()}.</p>
      *
      * @throws UnsupportedOperationException if the Python object does not implement the
-     * methods `__getitem__` and `__len__`. */
-    public List<PyObject> asList() { return new PyList(this); }
+     * methods {@code __getitem__} and {@code __len__}. */
+    public @NotNull List<PyObject> asList() { return new PyList(this); }
 
-    /** Returns a view of the Python object as a map. The view is backed by the object, so
-     * changes to the object are reflected in the view, and vice-versa.
+    /** <p>Returns a view of the Python object as a map. The view is backed by the object, so
+     * changes to the object are reflected in the view, and vice-versa.</p>
      *
-     * PyObject already implements the `Map` interface, but that is for attribute access
-     * (Python "`.`" syntax), whereas the `Map` returned by this method is for container access
-     * (Python "`[]`" syntax).
+     * <p>PyObject already implements the {@code Map} interface, but that is for attribute
+     * access (Python "{@code .}" syntax), whereas the {@code Map} returned by this method is
+     * for container access (Python "{@code []}" syntax).</p>
      *
-     * To add Java objects to the Python container through the view, first convert them using
-     * {@link #fromJava fromJava}.
+     * <p>To add Java objects to the Python container through the view, first convert them
+     * using {@link #fromJava fromJava()}.</p>
      *
      * @throws UnsupportedOperationException if the Python object does not implement the
-     * methods `__contains__`, `__getitem__`, `__iter__` and `__len__`. */
-    public Map<PyObject, PyObject> asMap() { return new PyMap(this); }
+     * methods {@code __contains__}, {@code __getitem__}, {@code __iter__} and {@code __len__}. */
+    public @NotNull Map<PyObject, PyObject> asMap() { return new PyMap(this); }
 
-    /** Returns a view of the Python object as a set. The view is backed by the object, so
-     * changes to the object are reflected in the view, and vice-versa.
+    /** <p>Returns a view of the Python object as a set. The view is backed by the object, so
+     * changes to the object are reflected in the view, and vice-versa.</p>
      *
-     * To add Java objects to the Python container through the view, first convert them using
-     * {@link #fromJava fromJava}.
+     * <p>To add Java objects to the Python container through the view, first convert them
+     * using {@link #fromJava fromJava()}.</p>
      *
      * @throws UnsupportedOperationException if the Python object does not implement the
-     * methods `__contains__`, `__iter__` and `__len__`. */
-    public Set<PyObject> asSet() { return new PySet(this); }
+     * methods {@code __contains__}, {@code __iter__} and {@code __len__}. */
+    public @NotNull Set<PyObject> asSet() { return new PySet(this); }
 
 
     // === Miscellaneous =====================================================
 
-    /** Equivalent to Python `id()`. */
+    /** Equivalent to Python {@code id()}. */
     public native long id();
 
-    /** Equivalent to Python `type()`. */
-    public PyObject type() {
-        return getInstance(typeNative());
+    /** Equivalent to Python {@code type()}. */
+    public @NotNull PyObject type() {
+        return requireNonNull(getInstance(typeNative()));
     }
     private native long typeNative();
 
-    /** Equivalent to Python `()` syntax. Keyword arguments may be passed using instances of {@link
-     * Kwarg} at the end of the parameter list. Parameters will be converted as described at
-     * {@link #fromJava fromJava()}. */
+    /** Equivalent to Python {@code ()} syntax. Arguments will be converted as described at
+     * {@link #fromJava fromJava()}. Keyword arguments can be passed using instances of {@link
+     * Kwarg} at the end of the argument list. */
     public PyObject call(Object... args) {
         try {
             return callThrows(args);
@@ -201,17 +207,16 @@ public class PyObject extends AbstractMap<String,PyObject> implements AutoClosea
         }
     }
 
-    /** Same as {@link #call call()}, except that it directly passes any Java exception thrown by
-     * the Python code rather than wrapping it in a PyException */
+    /** Same as {@link #call call()}, except it directly passes any Java exception thrown
+     * by the Python code. */
     public PyObject callThrows(Object... args) throws Throwable {
         return getInstance(callThrowsNative(args));
     }
-    private native long callThrowsNative(Object... args);
+    private native long callThrowsNative(Object... args) throws Throwable;
 
-
-    /** Equivalent to `{@link #get get}(key).{@link #call call}(args)`, except it throws a
-     * PyException if the attribute does not exist. */
-    public PyObject callAttr(String key, Object... args) {
+    /** Same as {@link #get get}{@code (key).}{@link #call call}{@code (args)}, except it
+     * throws a {@link PyException} if the attribute does not exist. */
+    public PyObject callAttr(@NotNull String key, Object... args) {
         try {
             return callAttrThrows(key, args);
         } catch (PyException e) {
@@ -221,12 +226,12 @@ public class PyObject extends AbstractMap<String,PyObject> implements AutoClosea
         }
     }
 
-    /** Same as {@link #callAttr callAttr()}, except that it directly passes any Java exception
-     * thrown by the Python code rather than wrapping it in a PyException */
-    public PyObject callAttrThrows(String key, Object... args) throws Throwable {
+    /** Same as {@link #callAttr callAttr()}, except it directly passes any Java exception
+     * thrown by the Python code. */
+    public PyObject callAttrThrows(@NotNull String key, Object... args) throws Throwable {
         return getInstance(callAttrThrowsNative(key, args));
     }
-    private native long callAttrThrowsNative(String key, Object... args);
+    private native long callAttrThrowsNative(String key, Object... args) throws Throwable;
 
     /** @deprecated internal use in files generated by static_proxy.py */
     public static PyObject _chaquopyCall(StaticProxy sp, String name, Object... args) {
@@ -242,73 +247,77 @@ public class PyObject extends AbstractMap<String,PyObject> implements AutoClosea
 
     // ==== Attributes =======================================================
 
-    /** Removes all attributes returned by `dir()`. Because `dir()` usually includes
-     * non-removable attributes such as `__class__`, this will probably fail unless
-     * the object has a custom `__dir__` method.
-     *
-     * See also the notes on {@link #remove remove()} and {@link #isEmpty}. */
+    /** <p>Attempts to remove all attributes returned by {@link #keySet()}. See notes on
+     * {@link #isEmpty}.</p> */
     @Override public void clear() { super.clear(); }
 
-    /** Equivalent to `{@link #keySet()}.isEmpty()`. Because `dir()` usually includes an object's
-     * class attributes, `isEmpty` is unlikely ever to return true, even after calling {@link
-     * #clear}, unless the object has a custom `__dir__` method. */
+    /** Equivalent to {@link #keySet()}{@code .isEmpty()}. Because {@code keySet} usually
+     * includes the object's class attributes, {@code isEmpty} will never return true even
+     * after calling {@link #clear}, unless the object has a custom {@code __dir__} method. */
     @Override public boolean isEmpty() { return super.isEmpty(); }
 
-    /** Equivalent to Python `hasattr()`. */
-    @Override public boolean containsKey(Object key) {
+    /** Equivalent to Python {@code hasattr()}. */
+    @Override public boolean containsKey(@NotNull Object key) {
         return containsKeyNative((String)key);
     }
     private native boolean containsKeyNative(String key);
 
-    /** The value will be converted as described at {@link #fromJava fromJava()}.*/
+    /** Returns whether any attribute has the given value. The value will be converted as
+     * described at {@link #fromJava fromJava()}. */
     @Override public boolean containsValue(Object o) {
         return super.containsValue(fromJava(o));
     }
 
-    /** Equivalent to Python `getattr()`. In accordance with the `Map` interface, when the attribute
-     * does not exist, this method returns `null` rather than throwing an exception. To distinguish
-     * this from an attribute with a value of `None`, use {@link #containsKey containsKey()}. */
-    @Override public PyObject get(Object key) {
+    /** Equivalent to Python {@code getattr()}. In accordance with the {@code Map} interface,
+     * when the attribute does not exist, this method returns {@code null} rather than
+     * throwing an exception. To distinguish this from an attribute with a value of {@code
+     * None}, use {@link #containsKey containsKey()}. */
+    @Override public PyObject get(@NotNull Object key) {
         return getInstance(getNative((String)key));
     }
     private native long getNative(String key);
 
-    /** Equivalent to Python `setattr()`. */
-    @Override public PyObject put(String key, PyObject value) {
+    /** Equivalent to Python {@code setattr()}. */
+    @Override public PyObject put(@NotNull String key, PyObject value) {
         return put(key, (Object)value);
     }
 
-    /** Equivalent to Python `setattr()`. The value will be converted as described at
+    /** Equivalent to Python {@code setattr()}. The value will be converted as described at
      * {@link #fromJava fromJava()}.*/
-    public PyObject put(String key, Object value) {
+    public PyObject put(@NotNull String key, Object value) {
         return getInstance(putNative(key, value));
     }
     private native long putNative(String key, Object value);
 
-    /** Equivalent to Python `delattr()`. This usually means it will only succeed in removing
-     * attributes of the object itself, even though `dir()` also returns an object's class attributes
-     * by default
+    /** <p>Equivalent to Python {@code delattr()}. This means it can only remove attributes of
+     * the object itself, even though {@link #keySet()} usually includes the object's class
+     * attributes as well.</p>
      *
-     * In accordance with the `Map` interface, when the attribute does not exist, this method
-     * returns `null` rather than throwing an exception. */
-    @Override public PyObject remove(Object key) {
+     * <p>In accordance with the {@code Map} interface, when the attribute does not exist, this
+     * method returns {@code null} rather than throwing an exception.</p> */
+    @Override public PyObject remove(@NotNull Object key) {
         return getInstance(removeNative((String)key));
     }
     private native long removeNative(String key);
 
-    /** Equivalent to Python `dir()`. The returned set is backed by the Python object, so changes to
-     * the object are reflected in the set, and vice-versa. If the object is modified while an
-     * iteration over the set is in progress (except through the iterator's own `remove` operation),
-     * the results of the iteration are undefined. The set supports element removal, but see the
-     * notes on {@link #remove remove()}. It does not support the `add` or `addAll` operations. */
-    @Override public Set<String> keySet() { return super.keySet(); }
+    /** <p>Equivalent to Python {@code dir()}. Unless the object has a custom {@code __dir__}
+     * method, this means the result will include attributes from the object's class as well
+     * as the object itself.</p>
+     *
+     * <p>The returned set is backed by the Python object, so changes to the object are
+     * reflected in the set, and vice-versa. If the object is modified while an iteration over
+     * the set is in progress (except through the iterator's own {@code remove} operation), the
+     * results of the iteration are undefined. The set supports element removal, but see the
+     * notes on {@link #remove remove()}. It does not support the {@code add} or {@code addAll}
+     * operations.</p> */
+    @Override public @NotNull Set<String> keySet() { return super.keySet(); }
 
-    @Override
-    public Set<Entry<String, PyObject>> entrySet() {
+    /** See notes on {@link #keySet()}. */
+    @Override public @NotNull Set<Entry<String, PyObject>> entrySet() {
         return new AbstractSet<Entry<String, PyObject>>() {
             @Override public int size() { return dir().size(); }
 
-            @Override public Iterator<Entry<String, PyObject>> iterator() {
+            @Override public @NotNull Iterator<Entry<String, PyObject>> iterator() {
                 return new Iterator<Entry<String, PyObject>>() {
                     List<String> keys = dir();
                     int i = 0;
@@ -344,26 +353,21 @@ public class PyObject extends AbstractMap<String,PyObject> implements AutoClosea
 
     // === Object methods ====================================================
 
-    /** Equivalent to Python `==` operator.
-     * @param that Object to compare with this object. It will be converted as described at
-     * {@link #fromJava fromJava()}.
-     * @return `true` if the given object is equal to this object. */
+    /** Equivalent to Python {@code ==} operator. The given object will be converted as
+     * described at {@link #fromJava fromJava()} */
     @Override public native boolean equals(Object that);
 
-    /** Equivalent to Python `str()`.
-     * @return A string representation of the object. */
-    @Override public native String toString();
+    /** Equivalent to Python {@code str()}. */
+    @Override public native @NotNull String toString();
 
-    /** Equivalent to Python `repr()`. */
-    public native String repr();
+    /** Equivalent to Python {@code repr()}. */
+    public native @NotNull String repr();
 
-    /** Equivalent to Python `hash()`.
-     * @return The hash code value for this object. */
+    /** Equivalent to Python {@code hash()}. */
     @Override public native int hashCode();
 
     /** Calls {@link #close}. */
-    @Override
-    protected void finalize() throws Throwable {
+    @Override protected void finalize() throws Throwable {
         close();
         super.finalize();
     }

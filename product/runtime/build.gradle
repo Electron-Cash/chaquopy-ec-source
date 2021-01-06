@@ -58,6 +58,7 @@ def androidJar = "$sdkDir/platforms/android-$Common.COMPILE_SDK_VERSION/android.
 
 dependencies {
     compileOnly files(androidJar)
+    implementation 'org.jetbrains:annotations-java5:15.0'
 }
 
 for (abi in Common.ABIS) {

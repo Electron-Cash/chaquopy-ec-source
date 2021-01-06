@@ -1,19 +1,24 @@
 package com.chaquo.python;
 
 
-/** Interface to Python.
+import org.jetbrains.annotations.*;
+
+import static java.util.Objects.requireNonNull;
+
+/** <p>Interface to Python.</p>
  *
- * Unless otherwise specified, all methods in this class throw {@link PyException} on failure. */
+ * <p>Unless otherwise specified, all methods in this class throw {@link PyException} on
+ * failure.</p> */
 public class Python {
 
     /** Provides information needed to start Python. */
     public static class Platform {
-        /** Returns the value to assign to `PYTHONPATH`, or `null` to leave it unset. The default
-         * implementation returns `null`. */
+        /** Returns the value to assign to {@code PYTHONPATH}, or {@code null} to leave it
+         * unset. The default implementation returns {@code null}. */
         public String getPath() { return null; }
 
         /** Called after Python is started. The default implementation does nothing. */
-        public void onStart(Python py) {}
+        public void onStart(@NotNull Python py) {}
     }
 
     private static Platform platform;
@@ -23,22 +28,20 @@ public class Python {
     /** Gets the interface to Python. This method always returns the same object. If
      * {@link #start start()} has not yet been called, it will be called with a new
      * {@link GenericPlatform}. */
-    public static synchronized Python getInstance() {
+    public static synchronized @NotNull Python getInstance() {
         if (! isStarted()) {
             start(new GenericPlatform());
         }
         return instance;
     }
 
-    /** Starts the Python virtual machine. If this method is called, it can only be called once, and
-     * it must be before any call to {@link #getInstance}.
+    /** <p>Starts Python. If this method is called, it can only be called once, and it must be
+     * before any call to {@link #getInstance}.</p>
      *
-     * If running on Android, see the notes <a
-     * href="../../../../android.html#android-startup">here</a> on how to call this method in an
-     * app. If running on any other platform, there's no need to call this method, unless you want
-     * to customize the Python startup process.
-     **/
-    public static synchronized void start(Platform platform) {
+     * <p>If running on Android, make sure you read the <a
+     * href="../../../../android.html#android-startup">notes on how to call this method in your
+     * app</a>. */
+    public static synchronized void start(@NotNull Platform platform) {
         if (isStarted()) {
             throw new IllegalStateException("Python already started");
         }
@@ -56,13 +59,13 @@ public class Python {
         }
     }
 
-    /** Returns the Platform object which was used to start Python, or `null` if Python has not
-     * yet been started. */
+    /** Returns the Platform object which was used to start Python, or {@code null} if {@link
+     * #start start} has not been called. */
     public static synchronized Platform getPlatform() {
         return platform;
     }
 
-    /** Return whether the Python virtual machine is running */
+    /** Returns whether Python is running. */
     public static synchronized boolean isStarted() {
         return (platform != null);
     }
@@ -75,18 +78,18 @@ public class Python {
 
     private Python() {}
 
-    /** Returns the module with the given name. Dot notation may be used to get submodules (e.g.
-     * `os.path`). */
-    @SuppressWarnings("deprecation")
-    public PyObject getModule(String name) {
-        return PyObject.getInstance(getModuleNative(name));
+    /** Returns the Python module with the given name. Dot notation may be used to get
+     * submodules (e.g. {@code os.path}). */
+    public @NotNull PyObject getModule(@NotNull String name) {
+        return requireNonNull(PyObject.getInstance(getModuleNative(name)));
     }
     private native long getModuleNative(String name);
 
-    /** Returns the <a href="https://docs.python.org/3/library/builtins.html">`builtins`</a>
-     * module, which contains Python's built-in functions (e.g. `open`), types (e.g. `dict`),
-     * constants (e.g. `True`) and exceptions (e.g. `ValueError`). */
-    public PyObject getBuiltins() {
+    /** Returns the <a href="https://docs.python.org/3/library/builtins.html">{@code
+     * builtins}</a> module. This contains Python's built-in functions (e.g. {@code open}),
+     * types (e.g. {@code dict}), constants (e.g. {@code True}) and exceptions (e.g. {@code
+     * ValueError}). */
+    public @NotNull PyObject getBuiltins() {
         return getModule("builtins");
     }
 }

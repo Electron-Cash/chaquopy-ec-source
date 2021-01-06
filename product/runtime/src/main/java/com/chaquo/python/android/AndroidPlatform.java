@@ -7,14 +7,14 @@ import android.os.*;
 import com.chaquo.python.*;
 import java.io.*;
 import java.util.*;
+import org.jetbrains.annotations.*;
 import org.json.*;
 
 
 /** Platform for Chaquopy on Android. */
-@SuppressWarnings("deprecation")
 public class AndroidPlatform extends Python.Platform {
 
-    // Used in importer.py and test_android.py.
+    /** @deprecated Internal use in importer.py and test_android.py. */
     public static String ABI;
 
     private static final String[] OBSOLETE_FILES = {
@@ -53,7 +53,7 @@ public class AndroidPlatform extends Python.Platform {
 
     /** Uses the {@link android.app.Application} context of the given context to initialize
      * Python. */
-    public AndroidPlatform(Context context) {
+    public AndroidPlatform(@NotNull Context context) {
         mContext = (Application) context.getApplicationContext();
         sp = mContext.getSharedPreferences(Common.ASSET_DIR, Context.MODE_PRIVATE);
         am = mContext.getAssets();
@@ -79,12 +79,12 @@ public class AndroidPlatform extends Python.Platform {
     }
 
     /** Returns the Application context of the context which was passed to the contructor. */
-    public Application getApplication() {
+    public @NotNull Application getApplication() {
         return mContext;
     }
 
     @Override
-    public String getPath() {
+    public @NotNull String getPath() {
         // These assets will be extracted to separate files and used as the initial PYTHONPATH.
         String path = "";
         String assetDir = mContext.getFilesDir() + "/" + Common.ASSET_DIR;
@@ -121,7 +121,7 @@ public class AndroidPlatform extends Python.Platform {
     }
 
     @Override
-    public void onStart(Python py) {
+    public void onStart(@NotNull Python py) {
         // These assets will be added to the start of sys.path using AssetFinder paths,
         // so their content will be extracted on demand.
         String[] appPath = {
@@ -142,8 +142,8 @@ public class AndroidPlatform extends Python.Platform {
         Set<String> unextracted = new HashSet<>(assets);
         Set<String> directories = new HashSet<>();
         SharedPreferences.Editor spe = sp.edit();
-        for (Iterator i = assetsJson.keys(); i.hasNext(); /**/) {
-            String path = (String) i.next();
+        for (Iterator<String> i = assetsJson.keys(); i.hasNext(); /**/) {
+            String path = i.next();
             for (String ea : assets) {
                 if (path.equals(ea) || path.startsWith(ea + "/")) {
                     extractAsset(assetsJson, spe, path);
