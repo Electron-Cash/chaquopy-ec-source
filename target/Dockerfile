@@ -42,9 +42,17 @@ RUN target/for-each-abi.sh target/build-bzip2.sh
 COPY build-xz.sh target
 RUN target/for-each-abi.sh target/build-xz.sh
 
-# Python
+# Python: for .pyc compilation, we must install the same minor Python version as Chaquopy uses.
 RUN apt-get update && \
-    apt-get install -y python3.8
+    apt-get install -y gcc libbz2-dev libffi-dev libsqlite3-dev libssl-dev zlib1g-dev make
+RUN version=3.8.7 && \
+    wget https://www.python.org/ftp/python/$version/Python-$version.tgz && \
+    tar -xf Python-$version.tgz && \
+    cd Python-$version && \
+    ./configure && \
+    make -j $(nproc) && \
+    make install
+
 COPY python target/python
 COPY build-python.sh target/
 RUN target/for-each-abi.sh target/build-python.sh
