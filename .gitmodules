@@ -1,6 +1,6 @@
 [submodule "target/python"]
 	path = target/python
-	url = https://github.com/Electron-Cash/cpython.git
+	url = https://github.com/Electron-Cash/cpython
 [submodule "target/openssl"]
 	path = target/openssl
 	url = https://github.com/openssl/openssl.git

@@ -14533,7 +14533,7 @@ static PyObject *__pyx_f_4java_8chaquopy_detach(CYTHON_UNUSED int __pyx_skip_dis
 
 /* Python wrapper */
 static PyObject *__pyx_pw_4java_8chaquopy_13detach(PyObject *__pyx_self, CYTHON_UNUSED PyObject *unused); /*proto*/
-static char __pyx_doc_4java_8chaquopy_12detach[] = "Detaches the current thread from the Java VM. This is done automatically on exit for threads\n    created via the :any:`threading` module. Any other non-Java-created thread which uses the\n    `java` module must call `detach` before the thread exits. Failure to do so will cause a\n    crash on some Java implementations, including most versions of Android.\n    ";
+static char __pyx_doc_4java_8chaquopy_12detach[] = "Detaches the current thread from the Java VM. This is done automatically on exit for threads\n    created via the :any:`threading` module. Any other non-Java-created thread which uses the\n    `java` module must call `detach` before the thread exits, or the process may crash.\n    ";
 static PyMethodDef __pyx_mdef_4java_8chaquopy_13detach = {"detach", (PyCFunction)__pyx_pw_4java_8chaquopy_13detach, METH_NOARGS, __pyx_doc_4java_8chaquopy_12detach};
 static PyObject *__pyx_pw_4java_8chaquopy_13detach(PyObject *__pyx_self, CYTHON_UNUSED PyObject *unused) {
   PyObject *__pyx_r = 0;

@@ -6,25 +6,38 @@ FROM chaquopy-base
 #   where XX is the NDK version. Check over the `master` version of that document as well.
 RUN yes | android-sdk/cmdline-tools/tools/bin/sdkmanager "ndk;18.1.5063045"
 
+RUN apt-get update && \
+    apt-get install -y python  # For the NDK's make_standalone_toolchain.py.
 COPY build-toolchains.sh build-toolchain.sh build-common.sh target/
 RUN target/build-toolchains.sh android-sdk/ndk/* "arm64-v8a armeabi-v7a x86 x86_64"
 COPY for-each-abi.sh target/
 
 RUN apt-get update && \
     apt-get -y install bison flex g++ make
-
 COPY build-common-tools.sh target/
+
+# This version of Debian includes patchelf 0.9, which rearranges the file in ways that break
+# some other tools, including strip (https://github.com/NixOS/patchelf/issues/10). Stripping
+# before patching works on API level 26, but level 15 gives a dynamic linker error even when
+# the file isn't stripped at all ("get_lib_extents[777]: 1132 - No loadable segments found").
+# Build a fixed version from https://github.com/NixOS/patchelf/pull/117 .
+RUN apt-get update && \
+    apt-get install -y autoconf && \
+    commit=6bfcafbba8d89e44f9ac9582493b4f27d9d8c369 && \
+    wget -q -O - https://github.com/NixOS/patchelf/archive/$commit.tar.gz | tar -xzf - && \
+    ( cd patchelf-$commit && ./bootstrap.sh && ./configure && make && make install ) && \
+    rm -r patchelf-$commit
 
 # OpenSSL
 RUN apt-get update && \
-    apt-get install -y patchelf perl-modules
+    apt-get install -y perl-modules
 COPY openssl target/openssl
 COPY build-openssl.sh target/
 RUN target/for-each-abi.sh target/build-openssl.sh
 
 # SQLite
 RUN apt-get update && \
-    apt-get install -y gcc tclsh
+    apt-get install -y tclsh
 COPY sqlite target/sqlite
 COPY python/config.sub target/python/
 COPY build-sqlite.sh target/
@@ -42,17 +55,7 @@ RUN target/for-each-abi.sh target/build-bzip2.sh
 COPY build-xz.sh target
 RUN target/for-each-abi.sh target/build-xz.sh
 
-# Python: for .pyc compilation, we must install the same minor Python version as Chaquopy uses.
-RUN apt-get update && \
-    apt-get install -y gcc libbz2-dev libffi-dev libsqlite3-dev libssl-dev zlib1g-dev make
-RUN version=3.8.7 && \
-    wget https://www.python.org/ftp/python/$version/Python-$version.tgz && \
-    tar -xf Python-$version.tgz && \
-    cd Python-$version && \
-    ./configure && \
-    make -j $(nproc) && \
-    make install
-
+# Python
 COPY python target/python
 COPY build-python.sh target/
 RUN target/for-each-abi.sh target/build-python.sh
